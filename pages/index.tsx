@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const GOOGLE_CLIENT_ID = '437927730977-b69f4i1bje208hcib6bsu4jvfbo1hacj.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '437927730977-t2hkbs73o06fqoiurpuok06eeg0umlnj.apps.googleusercontent.com';
 
 export default function Home() {
   const [tab, setTab] = useState<'services'|'profile'|'style'|'projects'|'guide'>('guide');
