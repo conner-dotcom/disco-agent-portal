@@ -6,7 +6,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const REDIRECT_URI = 'https://disco-agent-portal.vercel.app/api/oauth/google';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.readonly';
 const WEBHOOK_BASE = 'https://dias-mac-studio.tail4f36cb.ts.net/webhooks';
-const WEBHOOK_SECRET = 'XmNJhcvbY596Ue9jK4c3LsDQRoiKK3CmnUo238c9g94';
+const WEBHOOK_SECRET = 'hCFMQ0C74O1S9rZZgzOhoov4RuLIiM3a35dkHShwOSI';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { code, state, user } = req.query;

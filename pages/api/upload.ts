@@ -8,7 +8,7 @@ import path from 'path';
 export const config = { api: { bodyParser: false } };
 
 const WEBHOOK_BASE = 'https://dias-mac-studio.tail4f36cb.ts.net/webhooks';
-const WEBHOOK_SECRET = 'XmNJhcvbY596Ue9jK4c3LsDQRoiKK3CmnUo238c9g94';
+const WEBHOOK_SECRET = 'hCFMQ0C74O1S9rZZgzOhoov4RuLIiM3a35dkHShwOSI';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
