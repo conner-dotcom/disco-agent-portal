@@ -65,7 +65,7 @@ export default function Home() {
           <p style={{ fontSize: 14, opacity: 0.7, marginTop: 16 }}>
             Connect your accounts, set your preferences, and make Rhythm yours.
           </p>
-          <a href={`https://slack.com/oauth/v2/authorize?client_id=879184060177.11209135000535&scope=openid,profile,email&redirect_uri=${encodeURIComponent('https://disco-agent-portal.vercel.app/api/oauth/slack')}`}
+          <a href={`https://slack.com/openid/connect/authorize?response_type=code&client_id=879184060177.11209135000535&scope=openid,profile,email&redirect_uri=${encodeURIComponent('https://disco-agent-portal.vercel.app/api/oauth/slack')}`}
             style={{ display: 'inline-block', marginTop: 32, padding: '14px 40px', fontSize: 18,
               background: 'white', color: '#1a1a2e', border: 'none', borderRadius: 8,
               cursor: 'pointer', fontWeight: 600, textDecoration: 'none' }}>
