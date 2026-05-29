@@ -6,17 +6,18 @@ function getUrlParam(key: string): string {
 }
 
 const WEBHOOK_BASE = 'https://dias-mac-studio.tail4f36cb.ts.net/webhooks';
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 // Steps definition
 const STEPS = [
   { key: 'welcome', label: 'Welcome', num: 1 },
-  { key: 'slack', label: 'Slack ID', num: 2 },
-  { key: 'google', label: 'Connect Google', num: 3 },
-  { key: 'github', label: 'Connect GitHub', num: 4 },
-  { key: 'profile', label: 'Profile', num: 5 },
-  { key: 'style', label: 'Style', num: 6 },
-  { key: 'done', label: 'Done', num: 7 },
+  { key: 'slack', label: 'Slack', num: 2 },
+  { key: 'google', label: 'Google', num: 3 },
+  { key: 'github', label: 'GitHub', num: 4 },
+  { key: 'granola', label: 'Granola', num: 5 },
+  { key: 'profile', label: 'Profile', num: 6 },
+  { key: 'style', label: 'Style', num: 7 },
+  { key: 'done', label: 'Done', num: 8 },
 ] as const;
 
 type StepKey = typeof STEPS[number]['key'];
@@ -25,11 +26,12 @@ export default function Home() {
   const [userId, setUserId] = useState(() => getUrlParam('id') || getUrlParam('userId') || '');
   const [userName, setUserName] = useState(() => getUrlParam('name') || '');
   const [step, setStep] = useState<StepKey>('welcome');
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
-  const [animKey, setAnimKey] = useState(0);
   const [services, setServices] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [granolaKey, setGranolaKey] = useState('');
+  const [granolaSaved, setGranolaSaved] = useState(false);
 
   const [profile, setProfile] = useState({
     role: '',
@@ -47,15 +49,13 @@ export default function Home() {
     emoji: true,
   });
 
-  // Navigate between steps with animation
+  const currentStepIndex = STEPS.findIndex((s) => s.key === step);
+
+  // Navigate between steps
   const goTo = useCallback((nextStep: StepKey) => {
-    const currentIdx = STEPS.findIndex((s) => s.key === step);
-    const nextIdx = STEPS.findIndex((s) => s.key === nextStep);
-    setDirection(nextIdx > currentIdx ? 'forward' : 'back');
-    setAnimKey((k) => k + 1);
     setStep(nextStep);
     setMessage('');
-  }, [step]);
+  }, []);
 
   const nextStep = useCallback(() => {
     const currentIdx = STEPS.findIndex((s) => s.key === step);
@@ -76,7 +76,7 @@ export default function Home() {
     const handler = (event: MessageEvent) => {
       if (event.data && event.data.type === 'oauth-connected') {
         setServices((s) => ({ ...s, [event.data.service]: true }));
-        setMessage(`${event.data.service} connected!`);
+        setMessage(`${event.data.service} connected.`);
       }
     };
     window.addEventListener('message', handler);
@@ -85,7 +85,7 @@ export default function Home() {
 
   const connectOAuth = (service: string) => {
     if (!userId) {
-      setMessage('Enter your Slack User ID first');
+      setMessage('Enter your Slack User ID first.');
       return;
     }
     const popup = window.open(
@@ -94,14 +94,34 @@ export default function Home() {
       'width=600,height=700'
     );
     if (!popup) {
-      setMessage('Please allow popups for this site');
+      setMessage('Please allow popups for this site.');
       return;
     }
-    setMessage(`Approve the ${service} prompt in the popup window...`);
+    setMessage(`A popup opened — approve the ${service} prompt.`);
   };
 
-  // Welcome step - auto-advance timeout
-  const [welcomeDone, setWelcomeDone] = useState(false);
+  // Save Granola API key
+  const saveGranolaKey = async () => {
+    if (!granolaKey.trim()) return;
+    setLoading(true);
+    try {
+      await fetch(`${WEBHOOK_BASE}/oauth-granola`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          apiKey: granolaKey.trim(),
+          service: 'granola',
+        }),
+      });
+      setGranolaSaved(true);
+      setServices((s) => ({ ...s, granola: true }));
+      setMessage('Granola API key saved.');
+    } catch {
+      setMessage('Failed to save Granola key.');
+    }
+    setLoading(false);
+  };
 
   // Submit onboarding to webhook
   const submitOnboarding = async () => {
@@ -119,7 +139,7 @@ export default function Home() {
           services,
         }),
       });
-      setMessage('Profile saved!');
+      setMessage('Profile saved.');
     } catch {
       // non-fatal
     }
@@ -127,56 +147,40 @@ export default function Home() {
     nextStep();
   };
 
-  // ── Step indicator / progress ──
-  const currentStepIndex = STEPS.findIndex((s) => s.key === step);
-  const progressPct = Math.round((currentStepIndex / (STEPS.length - 1)) * 100);
-
   // ── Step content ──
   const renderStep = () => {
     switch (step) {
       case 'welcome':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-illustration">
-              <div className="welcome-graphic">
-                <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                  <circle cx="40" cy="40" r="38" stroke="url(#gradWelcome)" strokeWidth="2.5" strokeDasharray="6 3" />
-                  <circle cx="40" cy="32" r="6" fill="url(#gradWelcome)" />
-                  <path d="M25 44c0 8 6.7 14.5 15 14.5S55 52 55 44" stroke="url(#gradWelcome)" strokeWidth="2.5" strokeLinecap="round" />
-                  <defs>
-                    <linearGradient id="gradWelcome" x1="0" y1="0" x2="80" y2="80">
-                      <stop stopColor="#818cf8" />
-                      <stop offset="1" stopColor="#c084fc" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+          <div className="step-content">
+            <h1 className="serif-heading">Disco Agent Portal</h1>
+            <p className="step-description">
+              Your personal AI agent, tuned to how you work. We'll walk through a quick setup to
+              connect your services and personalize your experience.
+            </p>
+            <hr className="step-hr" />
+            <div className="feature-list">
+              <div className="feature-item">
+                <span className="feature-icon">1.</span>
+                <span>Talk to your agent in Slack — DM or @mention</span>
               </div>
-              <h1 className="welcome-title">Welcome to Gruv</h1>
-              <p className="welcome-tagline">Your personal AI agent, tuned to how you work.</p>
-            </div>
-            <div className="welcome-body">
-              <p className="welcome-text">
-                Gruv is your context-aware AI companion — it lives in Slack, understands your calendar, 
-                reads your code, and helps you work smarter. Before we get started, we&apos;ll walk through 
-                a quick setup to personalize your experience.
-              </p>
-              <div className="welcome-features">
-                {[
-                  { icon: '💬', text: 'Talk to Gruv in Slack — DM or @mention' },
-                  { icon: '📊', text: 'Query your company data — no SQL needed' },
-                  { icon: '📧', text: 'Calendar, email, GitHub — all connected' },
-                  { icon: '⚡', text: 'Personal cron jobs, briefings, and more' },
-                ].map((f, i) => (
-                  <div key={i} className="welcome-feature" style={{ animationDelay: `${i * 0.1}s` }}>
-                    <span className="wf-icon">{f.icon}</span>
-                    <span>{f.text}</span>
-                  </div>
-                ))}
+              <div className="feature-item">
+                <span className="feature-icon">2.</span>
+                <span>Connected to your calendar, email, GitHub, and Granola</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">3.</span>
+                <span>Query company data, review PRs, summarize meetings</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">4.</span>
+                <span>Personal cron jobs, briefings, and more</span>
               </div>
             </div>
             <div className="step-actions">
-              <button onClick={() => goTo('slack')} className="btn-primary-lg">
-                Get Started →
+              <div />
+              <button onClick={() => goTo('slack')} className="btn-primary">
+                Get started &rarr;
               </button>
             </div>
           </div>
@@ -184,15 +188,13 @@ export default function Home() {
 
       case 'slack':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-header">
-              <span className="step-number">Step 2</span>
-              <h2>Connect your Slack identity</h2>
-              <p className="step-why">
-                Gruv lives in Slack — it&apos;s where you&apos;ll chat with it every day. 
-                We need your Slack ID so Gruv knows who you are and can DM you directly.
-              </p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">Connect your Slack identity</h2>
+            <p className="step-description">
+              Your agent lives in Slack — it's where you'll chat with it every day.
+              We need your Slack ID so it knows who you are.
+            </p>
+            <hr className="step-hr" />
             <div className="step-body">
               {!userId ? (
                 <>
@@ -200,14 +202,11 @@ export default function Home() {
                     href={`https://slack.com/openid/connect/authorize?response_type=code&client_id=879184060177.11209135000535&scope=openid,profile,email&redirect_uri=${encodeURIComponent(
                       'https://disco-agent-portal.vercel.app/api/oauth/slack'
                     )}`}
-                    className="oauth-btn slack-btn"
+                    className="oauth-btn"
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M5 15a3 3 0 013-3h3v3a3 3 0 01-6 0zm3-9a3 3 0 013 3v1H8a3 3 0 010-6zm7 3a3 3 0 013 3v1h-3a3 3 0 010-6zm3 7a3 3 0 01-3 3h-3v-3a3 3 0 016 0z" />
-                    </svg>
                     Sign in with Slack
                   </a>
-                  <div className="divider">
+                  <div className="or-divider">
                     <span>or enter your Slack User ID</span>
                   </div>
                   <div className="input-group">
@@ -216,28 +215,28 @@ export default function Home() {
                       onChange={(e) => {
                         if (e.target.value.length >= 8) setUserId(e.target.value.trim());
                       }}
-                      className="input-lg"
+                      className="text-input"
                     />
                     <p className="input-hint">
-                      Slack → Profile → ⋯ → <strong>Copy member ID</strong>
+                      Slack &rarr; Profile &rarr; &ctdot; &rarr; <strong>Copy member ID</strong>
                     </p>
                   </div>
                 </>
               ) : (
-                <div className="connected-badge">
-                  <span className="connected-dot" />
+                <div className="connected-row">
+                  <span className="connected-indicator" />
                   <span>Signed in as <strong>{userId}</strong></span>
                 </div>
               )}
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
               <button
                 onClick={() => nextStep()}
                 disabled={!userId}
-                className="btn-primary-lg"
+                className="btn-primary"
               >
-                Continue →
+                Continue &rarr;
               </button>
             </div>
           </div>
@@ -245,46 +244,34 @@ export default function Home() {
 
       case 'google':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-header">
-              <span className="step-number">Step 3</span>
-              <h2>Connect Google</h2>
-              <p className="step-why">
-                Connect Google so Gruv can read your calendar to find the best meeting times, 
-                summarize your emails, and store files in your personal Drive folder. 
-                Gruv only accesses what you explicitly grant.
-              </p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">Connect Google</h2>
+            <p className="step-description">
+              Connect Google so your agent can read your calendar, summarize emails,
+              and store files in your Drive. Only accesses what you explicitly grant.
+            </p>
+            <hr className="step-hr" />
             <div className="step-body">
               {services.google ? (
-                <div className="connected-badge success">
-                  <span className="connected-dot green" />
+                <div className="connected-row">
+                  <span className="connected-indicator green" />
                   <span>Google connected</span>
                 </div>
               ) : (
-                <button onClick={() => connectOAuth('google')} className="oauth-btn google-btn">
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
+                <button onClick={() => connectOAuth('google')} className="oauth-btn">
                   Connect Google Account
                 </button>
               )}
-              <ul className="permission-list">
-                <li>📅 Calendar — find your free/busy times</li>
-                <li>📧 Gmail — summarize and search email</li>
-                <li>📁 Drive — store your files and projects</li>
+              <ul className="perm-list">
+                <li>Calendar — find your free/busy times</li>
+                <li>Gmail — summarize and search email</li>
+                <li>Drive — store your files and projects</li>
               </ul>
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
-              <button
-                onClick={() => nextStep()}
-                className="btn-primary-lg"
-              >
-                Continue →
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
+              <button onClick={() => nextStep()} className="btn-primary">
+                Continue &rarr;
               </button>
             </div>
           </div>
@@ -292,43 +279,100 @@ export default function Home() {
 
       case 'github':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-header">
-              <span className="step-number">Step 4</span>
-              <h2>Connect GitHub</h2>
-              <p className="step-why">
-                Connect GitHub so Gruv can review PRs, search your codebase, 
-                and help you understand changes across your repos. 
-                Gruv reads your repos to give you context-aware answers about your code.
-              </p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">Connect GitHub</h2>
+            <p className="step-description">
+              Connect GitHub so your agent can review PRs, search your codebase,
+              and help you understand changes across your repos.
+            </p>
+            <hr className="step-hr" />
             <div className="step-body">
               {services.github ? (
-                <div className="connected-badge success">
-                  <span className="connected-dot green" />
+                <div className="connected-row">
+                  <span className="connected-indicator green" />
                   <span>GitHub connected</span>
                 </div>
               ) : (
-                <button onClick={() => connectOAuth('github')} className="oauth-btn github-btn">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                  </svg>
-                  Connect GitHub Account
-                </button>
+                <>
+                  <button onClick={() => connectOAuth('github')} className="oauth-btn">
+                    Connect GitHub Account
+                  </button>
+                  <div className="setup-instructions">
+                    <div className="setup-title">Setup instructions</div>
+                    <p>
+                      Create an OAuth app at{' '}
+                      <a href="https://github.com/settings/developers" target="_blank" rel="noopener">
+                        github.com/settings/developers
+                      </a>{' '}
+                      with callback URL{' '}
+                      <code>https://disco-agent-portal.vercel.app/api/oauth/github</code>,
+                      then enter your Client ID and Secret below.
+                    </p>
+                  </div>
+                </>
               )}
-              <ul className="permission-list">
-                <li>🐙 Repos — search and understand your code</li>
-                <li>🔀 Pull Requests — review and summarize PRs</li>
-                <li>📋 Issues — track work across projects</li>
+              <ul className="perm-list">
+                <li>Repos — search and understand your code</li>
+                <li>Pull Requests — review and summarize PRs</li>
+                <li>Issues — track work across projects</li>
               </ul>
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
-              <button
-                onClick={() => nextStep()}
-                className="btn-primary-lg"
-              >
-                Continue →
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
+              <button onClick={() => nextStep()} className="btn-primary">
+                Continue &rarr;
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'granola':
+        return (
+          <div className="step-content">
+            <h2 className="serif-heading">Connect Granola</h2>
+            <p className="step-description">
+              Granola is your AI meeting assistant — connect it so your agent can access
+              your meeting notes and summaries. Paste your Granola API key below.
+            </p>
+            <hr className="step-hr" />
+            <div className="step-body">
+              {granolaSaved || services.granola ? (
+                <div className="connected-row">
+                  <span className="connected-indicator green" />
+                  <span>Granola connected</span>
+                </div>
+              ) : (
+                <div className="input-group">
+                  <input
+                    type="password"
+                    placeholder="Paste your Granola API key"
+                    value={granolaKey}
+                    onChange={(e) => setGranolaKey(e.target.value)}
+                    className="text-input"
+                  />
+                  <p className="input-hint">
+                    Find your API key in Granola Settings &rarr; API.
+                  </p>
+                  <button
+                    onClick={saveGranolaKey}
+                    disabled={!granolaKey.trim() || loading}
+                    className="btn-primary"
+                    style={{ marginTop: '12px' }}
+                  >
+                    {loading ? 'Saving...' : 'Save API Key'}
+                  </button>
+                </div>
+              )}
+              <ul className="perm-list">
+                <li>Meeting notes — access and summarize your meetings</li>
+                <li>Transcripts — search past conversations</li>
+                <li>Action items — track follow-ups automatically</li>
+              </ul>
+            </div>
+            <div className="step-actions">
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
+              <button onClick={() => nextStep()} className="btn-primary">
+                Continue &rarr;
               </button>
             </div>
           </div>
@@ -336,23 +380,21 @@ export default function Home() {
 
       case 'profile':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-header">
-              <span className="step-number">Step 5</span>
-              <h2>Tell Gruv about yourself</h2>
-              <p className="step-why">
-                The more Gruv knows about your role and goals, the more helpful it can be. 
-                This helps Gruv prioritize information and tailor its responses to what matters to you.
-              </p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">Tell us about yourself</h2>
+            <p className="step-description">
+              The more your agent knows about your role and goals, the more helpful it can be.
+              This helps prioritize information and tailor responses to what matters to you.
+            </p>
+            <hr className="step-hr" />
             <div className="step-body">
               <div className="profile-grid">
                 {[
-                  { key: 'role', label: 'Role', placeholder: 'Product Engineer', hint: 'What do you do at Disco?' },
+                  { key: 'role', label: 'Role', placeholder: 'Product Engineer', hint: 'What do you do?' },
                   { key: 'team', label: 'Team', placeholder: 'Marketplace', hint: 'Which team are you on?' },
                   { key: 'timezone', label: 'Timezone', placeholder: 'America/Los_Angeles' },
-                  { key: 'focus', label: 'Current Focus', placeholder: 'Auction model optimization, Q2 planning', hint: 'Top 1-2 things you\'re focused on right now' },
-                  { key: 'goals', label: 'Goals / Bets', placeholder: 'Ship auction V2 by EOM', hint: 'What outcomes are you driving toward?' },
+                  { key: 'focus', label: 'Current Focus', placeholder: 'Q2 planning, auction model', hint: 'Top 1-2 things right now' },
+                  { key: 'goals', label: 'Goals', placeholder: 'Ship auction V2 by EOM', hint: 'What outcomes are you driving?' },
                 ].map((f) => (
                   <div key={f.key} className="field">
                     <label className="field-label">{f.label}</label>
@@ -361,16 +403,16 @@ export default function Home() {
                       value={(profile as any)[f.key]}
                       onChange={(e) => setProfile({ ...profile, [f.key]: e.target.value })}
                       placeholder={f.placeholder}
-                      className="field-input"
+                      className="text-input"
                     />
                   </div>
                 ))}
               </div>
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
-              <button onClick={() => nextStep()} className="btn-primary-lg">
-                Continue →
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
+              <button onClick={() => nextStep()} className="btn-primary">
+                Continue &rarr;
               </button>
             </div>
           </div>
@@ -378,15 +420,13 @@ export default function Home() {
 
       case 'style':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-header">
-              <span className="step-number">Step 6</span>
-              <h2>Set your communication style</h2>
-              <p className="step-why">
-                Tune how Gruv communicates with you — short and punchy or thorough with context. 
-                You can always change this later.
-              </p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">Communication style</h2>
+            <p className="step-description">
+              Tune how your agent communicates — short and direct or thorough with context.
+              You can always change this later.
+            </p>
+            <hr className="step-hr" />
             <div className="step-body">
               <div className="style-grid">
                 {[
@@ -405,7 +445,7 @@ export default function Home() {
                   {
                     key: 'format',
                     label: 'Format',
-                    desc: 'How should Gruv structure its messages?',
+                    desc: 'How should messages be structured?',
                     options: ['bullets', 'paragraphs', 'mixed'],
                   },
                 ].map((f) => (
@@ -437,9 +477,9 @@ export default function Home() {
               </div>
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
-              <button onClick={submitOnboarding} className="btn-primary-lg">
-                {loading ? 'Saving...' : 'Finish Setup →'}
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
+              <button onClick={submitOnboarding} className="btn-primary">
+                {loading ? 'Saving...' : 'Finish Setup &rarr;'}
               </button>
             </div>
           </div>
@@ -447,59 +487,47 @@ export default function Home() {
 
       case 'done':
         return (
-          <div className="step-card" key={`step-${animKey}`}>
-            <div className="step-illustration done-illustration">
-              <div className="done-check">
-                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                  <circle cx="32" cy="32" r="30" stroke="url(#gradDone)" strokeWidth="3" />
-                  <path d="M20 32l8 8 16-16" stroke="url(#gradDone)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  <defs>
-                    <linearGradient id="gradDone" x1="0" y1="0" x2="64" y2="64">
-                      <stop stopColor="#22c55e" />
-                      <stop offset="1" stopColor="#16a34a" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-              <h1 className="done-title">You&apos;re all set!</h1>
-              <p className="done-subtitle">Gruv is ready to work with you.</p>
-            </div>
+          <div className="step-content">
+            <h2 className="serif-heading">You're all set</h2>
+            <p className="step-description">
+              Your agent is ready to work with you.
+            </p>
+            <hr className="step-hr" />
             <div className="done-summary">
-              <h3>Setup Summary</h3>
-              <div className="summary-grid">
-                <div className="summary-item">
-                  <span className="summary-icon">{services.google ? '✅' : '⬜'}</span>
+              <h3 className="done-summary-heading">Setup Summary</h3>
+              <div className="summary-list">
+                <div className="summary-row">
                   <span className="summary-label">Google</span>
                   <span className="summary-status">{services.google ? 'Connected' : 'Skipped'}</span>
                 </div>
-                <div className="summary-item">
-                  <span className="summary-icon">{services.github ? '✅' : '⬜'}</span>
+                <div className="summary-row">
                   <span className="summary-label">GitHub</span>
                   <span className="summary-status">{services.github ? 'Connected' : 'Skipped'}</span>
                 </div>
-                <div className="summary-item">
-                  <span className="summary-icon">✅</span>
+                <div className="summary-row">
+                  <span className="summary-label">Granola</span>
+                  <span className="summary-status">{granolaSaved || services.granola ? 'Connected' : 'Skipped'}</span>
+                </div>
+                <div className="summary-row">
                   <span className="summary-label">Slack</span>
                   <span className="summary-status">{userId}</span>
                 </div>
-                <div className="summary-item">
-                  <span className="summary-icon">{profile.role ? '✅' : '⬜'}</span>
+                <div className="summary-row">
                   <span className="summary-label">Profile</span>
                   <span className="summary-status">{profile.role || 'Not set'}</span>
                 </div>
-                <div className="summary-item">
-                  <span className="summary-icon">✅</span>
+                <div className="summary-row">
                   <span className="summary-label">Style</span>
-                  <span className="summary-status">{style.verbosity} · {style.proactivity}</span>
+                  <span className="summary-status">{style.verbosity} &middot; {style.proactivity}</span>
                 </div>
               </div>
             </div>
+            <hr className="step-hr" />
             <div className="done-next">
-              <h3>What&apos;s next?</h3>
+              <h3 className="done-next-heading">What's next?</h3>
               <ul className="next-steps">
                 <li>
-                  <strong>DM @gruv in Slack</strong> — start a conversation, ask a question, 
-                  or set up a daily briefing
+                  <strong>DM @gruv in Slack</strong> — start a conversation or set up a daily briefing
                 </li>
                 <li>
                   <strong>Upload your Claude projects</strong> — drag files into{' '}
@@ -512,12 +540,12 @@ export default function Home() {
               </ul>
             </div>
             <div className="step-actions">
-              <button onClick={prevStep} className="btn-ghost">← Back</button>
+              <button onClick={prevStep} className="btn-ghost">&larr; Back</button>
               <div style={{ flex: 1, textAlign: 'right' }}>
-                <p className="done-url-hint">
-                  Bookmark this page to come back anytime.{' '}
-                  <a href={`/?id=${userId}`} className="link">
-                    {`disco-agent-portal.vercel.app/?id=${userId}`}
+                <p className="bookmark-hint">
+                  Bookmark:{' '}
+                  <a href={`/?id=${userId}`} className="inline-link">
+                    disco-agent-portal.vercel.app/?id={userId}
                   </a>
                 </p>
               </div>
@@ -536,81 +564,72 @@ export default function Home() {
       <div className="app-root">
         {/* Header */}
         <header className="app-header">
-          <div className="header-brand">
-            <svg width="28" height="28" viewBox="0 0 56 56" fill="none" className="header-logo">
-              <circle cx="28" cy="28" r="26" stroke="url(#logoGrad)" strokeWidth="3" />
-              <path d="M18 28c0 5.5 4.5 10 10 10s10-4.5 10-10" stroke="url(#logoGrad)" strokeWidth="3" strokeLinecap="round" />
-              <circle cx="28" cy="22" r="4" fill="url(#logoGrad)" />
-              <defs>
-                <linearGradient id="logoGrad" x1="0" y1="0" x2="56" y2="56">
-                  <stop stopColor="#818cf8" />
-                  <stop offset="1" stopColor="#c084fc" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span className="header-name">Gruv</span>
-            <span className="header-badge">BETA</span>
+          <div className="header-left">
+            <span className="header-name">Disco Agent Portal</span>
           </div>
           {userId && (
             <div className="header-user">
-              <span className="user-dot" />
               <span>{userId}</span>
             </div>
           )}
         </header>
 
-        {/* Progress bar */}
-        <div className="progress-container">
-          <div className="progress-track">
-            <div
-              className="progress-fill"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-          <div className="progress-steps">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.key}
-                className={`progress-step ${i < currentStepIndex ? 'done' : ''} ${i === currentStepIndex ? 'active' : ''}`}
-              >
-                <div className="progress-dot">
-                  {i < currentStepIndex ? (
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <path d="M2 5l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ) : (
-                    <span className="dot-num">{s.num}</span>
-                  )}
-                </div>
-                <span className="progress-label">{s.label}</span>
-              </div>
-            ))}
-          </div>
+        {/* Main layout: sidebar + content */}
+        <div className="main-layout">
+          {/* Sidebar with step navigation */}
+          <nav className="sidebar">
+            <div className="sidebar-label">Setup</div>
+            <ol className="step-list">
+              {STEPS.map((s, i) => (
+                <li
+                  key={s.key}
+                  className={`step-item ${
+                    i < currentStepIndex
+                      ? 'step-done'
+                      : i === currentStepIndex
+                      ? 'step-current'
+                      : ''
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      if (i <= currentStepIndex || STEPS.slice(0, i).every((ps) => {
+                        if (ps.key === 'slack') return !!userId;
+                        return true;
+                      })) {
+                        goTo(s.key);
+                      }
+                    }}
+                    className="step-link"
+                  >
+                    <span className="step-num">{s.num}.</span>
+                    <span className="step-label">{s.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+
+          {/* Content area */}
+          <main className="content-area">
+            {/* Toast message */}
+            {message && (
+              <div className="toast">{message}</div>
+            )}
+
+            {renderStep()}
+          </main>
         </div>
-
-        {/* Toast message */}
-        {message && (
-          <div className="toast" key={message}>
-            {message}
-          </div>
-        )}
-
-        {/* Step content */}
-        <main className={`step-container anim-${direction}`} key={animKey}>
-          {renderStep()}
-        </main>
 
         {/* Footer */}
         <footer className="app-footer">
-          <span>Gruv — your Disco AI agent</span>
-          <span className="footer-dot">·</span>
-          <span>v1.0</span>
+          Disco Agent Portal
         </footer>
       </div>
 
       {/* ── Global styles ── */}
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
         * {
           box-sizing: border-box;
@@ -619,37 +638,13 @@ export default function Home() {
         }
 
         body {
-          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
-          background: #08080c;
-          color: #e2e8f0;
-        }
-
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeSlideRight {
-          from { opacity: 0; transform: translateX(-20px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fadeSlideLeft {
-          from { opacity: 0; transform: translateX(20px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes popIn {
-          0% { opacity: 0; transform: scale(0.8); }
-          60% { transform: scale(1.05); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(0.85); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+          background: #ffffff;
+          color: #1a1a1a;
+          font-size: 15px;
+          line-height: 1.6;
         }
       `}</style>
 
@@ -657,19 +652,16 @@ export default function Home() {
       <style jsx>{`
         /* ── Root ── */
         .app-root {
-          max-width: 600px;
+          max-width: 900px;
           margin: 0 auto;
-          padding: 32px 24px 60px;
+          padding: 40px 40px 60px;
           min-height: 100vh;
-          background: #08080c;
-          background-image:
-            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.08) 0%, transparent 60%),
-            radial-gradient(ellipse 50% 40% at 80% 100%, rgba(168,85,247,0.04) 0%, transparent 60%);
+          background: #ffffff;
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
           .app-root {
-            padding: 20px 16px 40px;
+            padding: 24px 20px 40px;
           }
         }
 
@@ -678,225 +670,187 @@ export default function Home() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 28px;
-          animation: fadeSlideUp 0.5s ease;
+          margin-bottom: 40px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid #e8e7e4;
         }
-        .header-brand {
+        .header-left {
           display: flex;
           align-items: center;
-          gap: 10px;
-        }
-        .header-logo {
-          flex-shrink: 0;
+          gap: 8px;
         }
         .header-name {
-          font-size: 22px;
-          font-weight: 800;
-          letter-spacing: -0.03em;
-          background: linear-gradient(135deg, #e0e7ff, #c4b5fd);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .header-badge {
-          font-size: 10px;
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 20px;
           font-weight: 700;
-          letter-spacing: 0.1em;
-          color: #a78bfa;
-          border: 1px solid rgba(167,139,250,0.3);
-          border-radius: 12px;
-          padding: 3px 10px;
+          color: #1a1a1a;
+          letter-spacing: -0.01em;
         }
         .header-user {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11px;
-          color: rgba(255,255,255,0.4);
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 20px;
-          padding: 5px 12px;
-        }
-        .user-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #22c55e;
-          box-shadow: 0 0 6px rgba(34,197,94,0.5);
-          animation: pulse 2s ease-in-out infinite;
+          font-size: 12px;
+          color: #787774;
+          background: #f7f6f3;
+          border: 1px solid #e8e7e4;
+          border-radius: 4px;
+          padding: 4px 10px;
         }
 
-        /* ── Progress Bar ── */
-        .progress-container {
-          margin-bottom: 28px;
-          animation: fadeSlideUp 0.5s ease 0.1s both;
-        }
-        .progress-track {
-          height: 4px;
-          background: rgba(255,255,255,0.06);
-          border-radius: 2px;
-          overflow: hidden;
-          margin-bottom: 14px;
-        }
-        .progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
-          border-radius: 2px;
-          transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-          position: relative;
-        }
-        .progress-fill::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
-          background-size: 200% 100%;
-          animation: shimmer 2s ease-in-out infinite;
-        }
-        .progress-steps {
+        /* ── Main layout ── */
+        .main-layout {
           display: flex;
-          justify-content: space-between;
+          gap: 48px;
         }
-        .progress-step {
+
+        @media (max-width: 768px) {
+          .main-layout {
+            flex-direction: column;
+            gap: 24px;
+          }
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+          width: 180px;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+          .sidebar {
+            width: 100%;
+          }
+        }
+
+        .sidebar-label {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 13px;
+          font-weight: 600;
+          color: #787774;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 12px;
+        }
+
+        .step-list {
+          list-style: none;
+          padding: 0;
           display: flex;
           flex-direction: column;
-          align-items: center;
-          gap: 4px;
+          gap: 2px;
         }
-        .progress-dot {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background: rgba(255,255,255,0.06);
-          border: 1.5px solid rgba(255,255,255,0.1);
+
+        @media (max-width: 768px) {
+          .step-list {
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+        }
+
+        .step-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .step-link {
           display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s ease;
-        }
-        .progress-step.active .progress-dot {
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
-          border-color: #8b5cf6;
-          box-shadow: 0 0 12px rgba(99,102,241,0.4);
-          transform: scale(1.15);
-        }
-        .progress-step.done .progress-dot {
-          background: #22c55e;
-          border-color: #22c55e;
-        }
-        .dot-num {
-          font-size: 9px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.4);
-        }
-        .progress-step.active .dot-num {
-          color: #fff;
-        }
-        .progress-label {
-          font-size: 9px;
-          color: rgba(255,255,255,0.25);
-          font-weight: 500;
-          white-space: nowrap;
-          max-width: 52px;
-          text-align: center;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          transition: color 0.3s;
-        }
-        .progress-step.active .progress-label {
-          color: rgba(255,255,255,0.7);
-          font-weight: 600;
-        }
-        .progress-step.done .progress-label {
-          color: rgba(255,255,255,0.35);
-        }
-
-        @media (max-width: 640px) {
-          .progress-label {
-            font-size: 8px;
-            max-width: 40px;
-          }
-        }
-
-        /* ── Toast ── */
-        .toast {
-          background: rgba(99,102,241,0.1);
-          border: 1px solid rgba(99,102,241,0.2);
-          border-radius: 10px;
-          padding: 10px 16px;
-          margin-bottom: 16px;
-          font-size: 13px;
-          color: rgba(255,255,255,0.75);
-          animation: fadeSlideUp 0.3s ease;
-        }
-
-        /* ── Step container ── */
-        .step-container {
-          animation: fadeSlideRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .step-container.anim-back {
-          animation: fadeSlideLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        /* ── Step card ── */
-        .step-card {
-          background: rgba(255,255,255,0.025);
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 20px;
-          padding: 36px 32px;
-          backdrop-filter: blur(16px);
-          box-shadow: 0 8px 40px rgba(0,0,0,0.3);
-        }
-
-        @media (max-width: 640px) {
-          .step-card {
-            padding: 24px 20px;
-            border-radius: 16px;
-          }
-        }
-
-        /* ── Step header ── */
-        .step-header {
-          margin-bottom: 28px;
-        }
-        .step-number {
-          display: inline-block;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          color: #a78bfa;
-          text-transform: uppercase;
-          margin-bottom: 8px;
-        }
-        .step-header h2 {
-          font-size: 24px;
-          font-weight: 700;
-          letter-spacing: -0.03em;
-          margin-bottom: 8px;
-          color: #f1f5f9;
-        }
-        .step-why {
+          align-items: baseline;
+          gap: 6px;
+          padding: 5px 8px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-family: inherit;
           font-size: 14px;
-          color: rgba(255,255,255,0.45);
-          line-height: 1.7;
+          color: #787774;
+          text-align: left;
+          width: 100%;
+          border-radius: 4px;
+          transition: background 0.1s;
         }
 
-        @media (max-width: 640px) {
-          .step-header h2 {
-            font-size: 20px;
-          }
-          .step-why {
-            font-size: 13px;
-          }
+        .step-link:hover {
+          background: #f7f6f3;
+        }
+
+        .step-num {
+          font-size: 12px;
+          min-width: 20px;
+          color: #b9b7b0;
+        }
+
+        .step-label {
+          font-size: 14px;
+        }
+
+        .step-current .step-link {
+          color: #1a1a1a;
+          font-weight: 600;
+          background: #f7f6f3;
+        }
+
+        .step-current .step-num {
+          color: #1a1a1a;
+        }
+
+        .step-done .step-link {
+          color: #787774;
+        }
+
+        .step-done .step-num {
+          color: #9b9a94;
+        }
+
+        /* ── Content area ── */
+        .content-area {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .step-content {
+          max-width: 520px;
+        }
+
+        /* ── Serif headings ── */
+        .serif-heading {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-weight: 700;
+          color: #1a1a1a;
+          letter-spacing: -0.02em;
+          margin-bottom: 8px;
+        }
+
+        h1.serif-heading {
+          font-size: 32px;
+          margin-bottom: 12px;
+        }
+
+        h2.serif-heading {
+          font-size: 26px;
+        }
+
+        @media (max-width: 768px) {
+          h1.serif-heading { font-size: 26px; }
+          h2.serif-heading { font-size: 22px; }
+        }
+
+        /* ── Step description ── */
+        .step-description {
+          font-size: 15px;
+          color: #5a5955;
+          line-height: 1.7;
+          margin-bottom: 8px;
+        }
+
+        /* ── Horizontal rule ── */
+        .step-hr {
+          border: none;
+          border-top: 1px solid #e8e7e4;
+          margin: 20px 0;
         }
 
         /* ── Step body ── */
         .step-body {
-          margin-bottom: 28px;
+          margin-bottom: 24px;
         }
 
         /* ── Step actions ── */
@@ -905,183 +859,192 @@ export default function Home() {
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding-top: 8px;
+          padding-top: 4px;
         }
 
         /* ── Buttons ── */
-        .btn-primary-lg {
+        .btn-primary {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          padding: 13px 28px;
-          border: none;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 700;
-          cursor: pointer;
-          font-family: inherit;
-          background: linear-gradient(135deg, #6366f1, #7c3aed);
-          color: #fff;
-          box-shadow: 0 4px 20px rgba(99,102,241,0.35);
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn-primary-lg:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 30px rgba(99,102,241,0.5);
-        }
-        .btn-primary-lg:active {
-          transform: translateY(0);
-        }
-        .btn-primary-lg:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-          transform: none;
-          box-shadow: none;
-        }
-        .btn-ghost {
-          padding: 10px 20px;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 10px;
-          background: transparent;
-          color: rgba(255,255,255,0.5);
+          gap: 4px;
+          padding: 8px 20px;
+          border: 1px solid #1a1a1a;
+          border-radius: 4px;
           font-size: 14px;
-          font-weight: 600;
+          font-weight: 500;
           cursor: pointer;
           font-family: inherit;
-          transition: all 0.2s;
+          background: #1a1a1a;
+          color: #ffffff;
+          transition: background 0.15s, opacity 0.15s;
+        }
+        .btn-primary:hover {
+          background: #333333;
+        }
+        .btn-primary:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+
+        .btn-ghost {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 4px;
+          background: transparent;
+          color: #787774;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          font-family: inherit;
+          transition: color 0.15s, background 0.15s;
         }
         .btn-ghost:hover {
-          border-color: rgba(255,255,255,0.15);
-          color: rgba(255,255,255,0.8);
+          color: #1a1a1a;
+          background: #f7f6f3;
         }
 
         /* ── OAuth buttons ── */
         .oauth-btn {
           display: inline-flex;
           align-items: center;
-          gap: 10px;
-          padding: 14px 24px;
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
-          background: rgba(255,255,255,0.04);
-          color: #fff;
-          font-size: 15px;
-          font-weight: 600;
+          justify-content: center;
+          gap: 8px;
+          padding: 10px 20px;
+          border: 1px solid #e8e7e4;
+          border-radius: 4px;
+          background: #f7f6f3;
+          color: #1a1a1a;
+          font-size: 14px;
+          font-weight: 500;
           cursor: pointer;
           text-decoration: none;
           font-family: inherit;
-          transition: all 0.2s;
+          transition: background 0.15s;
           width: 100%;
-          justify-content: center;
         }
         .oauth-btn:hover {
-          background: rgba(255,255,255,0.07);
-          border-color: rgba(255,255,255,0.18);
-          transform: translateY(-1px);
+          background: #eeedeb;
         }
-        .slack-btn { border-color: rgba(74,21,75,0.6); background: rgba(74,21,75,0.2); }
-        .slack-btn:hover { border-color: rgba(74,21,75,0.8); background: rgba(74,21,75,0.3); }
-        .google-btn { border-color: rgba(66,133,244,0.3); background: rgba(66,133,244,0.08); }
-        .google-btn:hover { border-color: rgba(66,133,244,0.5); background: rgba(66,133,244,0.14); }
-        .github-btn { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); }
-        .github-btn:hover { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.07); }
 
-        /* ── Divider ── */
-        .divider {
+        /* ── Or divider ── */
+        .or-divider {
           display: flex;
           align-items: center;
-          gap: 12px;
-          margin: 20px 0;
-          font-size: 11px;
-          color: rgba(255,255,255,0.2);
+          gap: 10px;
+          margin: 16px 0;
+          font-size: 12px;
+          color: #b9b7b0;
         }
-        .divider::before,
-        .divider::after {
+        .or-divider::before,
+        .or-divider::after {
           content: '';
           flex: 1;
           height: 1px;
-          background: rgba(255,255,255,0.06);
+          background: #e8e7e4;
         }
 
         /* ── Input ── */
         .input-group {
-          margin-top: 8px;
+          margin-top: 4px;
         }
-        .input-lg {
+        .text-input {
           width: 100%;
-          padding: 14px 18px;
-          border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: #fff;
-          font-size: 15px;
+          padding: 10px 14px;
+          border-radius: 4px;
+          border: 1px solid #e8e7e4;
+          background: #ffffff;
+          color: #1a1a1a;
+          font-size: 14px;
           font-family: inherit;
           outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-          text-align: center;
-          letter-spacing: 0.02em;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .input-lg:focus {
-          border-color: rgba(139,92,246,0.4);
-          box-shadow: 0 0 0 3px rgba(139,92,246,0.1);
-          background: rgba(255,255,255,0.05);
+        .text-input:focus {
+          border-color: #1a1a1a;
+          box-shadow: 0 0 0 2px rgba(26,26,26,0.06);
         }
-        .input-lg::placeholder { color: rgba(255,255,255,0.15); }
+        .text-input::placeholder {
+          color: #b9b7b0;
+        }
         .input-hint {
-          font-size: 11px;
-          color: rgba(255,255,255,0.2);
-          margin-top: 10px;
-          text-align: center;
+          font-size: 12px;
+          color: #b9b7b0;
+          margin-top: 8px;
         }
-        .input-hint strong { color: rgba(255,255,255,0.35); }
+        .input-hint strong {
+          color: #787774;
+        }
 
-        /* ── Connected badge ── */
-        .connected-badge {
+        /* ── Connected indicator ── */
+        .connected-row {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 12px 20px;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 12px;
+          padding: 10px 16px;
+          background: #f7f6f3;
+          border: 1px solid #e8e7e4;
+          border-radius: 4px;
           font-size: 14px;
-          color: rgba(255,255,255,0.6);
+          color: #5a5955;
         }
-        .connected-badge.success {
-          background: rgba(34,197,94,0.06);
-          border-color: rgba(34,197,94,0.2);
-          color: #4ade80;
-        }
-        .connected-dot {
-          width: 8px;
-          height: 8px;
+        .connected-indicator {
+          width: 7px;
+          height: 7px;
           border-radius: 50%;
-          background: #8b5cf6;
-          box-shadow: 0 0 8px rgba(139,92,246,0.5);
-          display: inline-block;
-          animation: pulse 2s ease-in-out infinite;
+          background: #1a1a1a;
+          flex-shrink: 0;
         }
-        .connected-dot.green {
-          background: #22c55e;
-          box-shadow: 0 0 8px rgba(34,197,94,0.5);
+        .connected-indicator.green {
+          background: #2b9348;
         }
 
         /* ── Permission list ── */
-        .permission-list {
+        .perm-list {
           list-style: none;
-          margin-top: 20px;
+          margin-top: 16px;
           padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 4px;
         }
-        .permission-list li {
+        .perm-list li {
           font-size: 13px;
-          color: rgba(255,255,255,0.35);
-          padding: 8px 14px;
-          background: rgba(255,255,255,0.02);
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.03);
+          color: #787774;
+          padding: 6px 0;
+        }
+
+        /* ── Setup instructions (GitHub) ── */
+        .setup-instructions {
+          margin-top: 16px;
+          padding: 14px 16px;
+          background: #f7f6f3;
+          border: 1px solid #e8e7e4;
+          border-radius: 4px;
+        }
+        .setup-title {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 13px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin-bottom: 6px;
+        }
+        .setup-instructions p {
+          font-size: 13px;
+          color: #5a5955;
+          line-height: 1.6;
+        }
+        .setup-instructions a {
+          color: #1a1a1a;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .setup-instructions code {
+          font-size: 12px;
+          background: #e8e7e4;
+          padding: 1px 5px;
+          border-radius: 3px;
+          font-family: 'SF Mono', 'Menlo', monospace;
+          word-break: break-all;
         }
 
         /* ── Profile grid ── */
@@ -1100,71 +1063,52 @@ export default function Home() {
           flex-direction: column;
         }
         .field-label {
-          font-size: 11px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.6);
+          font-size: 12px;
+          font-weight: 600;
+          color: #1a1a1a;
           text-transform: uppercase;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.04em;
           margin-bottom: 2px;
+          font-family: Georgia, 'Times New Roman', serif;
         }
         .field-hint {
           font-size: 12px;
-          color: rgba(255,255,255,0.25);
-          margin-bottom: 8px;
+          color: #b9b7b0;
+          margin-bottom: 6px;
           line-height: 1.4;
         }
-        .field-input {
-          padding: 11px 14px;
-          border-radius: 10px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: #fff;
-          font-size: 14px;
-          font-family: inherit;
-          outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-        }
-        .field-input:focus {
-          border-color: rgba(99,102,241,0.4);
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-          background: rgba(255,255,255,0.05);
-        }
-        .field-input::placeholder { color: rgba(255,255,255,0.12); }
 
         /* ── Style grid ── */
         .style-grid {
           display: flex;
           flex-direction: column;
-          gap: 22px;
+          gap: 20px;
         }
-        .style-field {}
         .pill-group {
           display: flex;
           gap: 6px;
           flex-wrap: wrap;
         }
         .pill {
-          padding: 8px 20px;
-          border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: rgba(255,255,255,0.45);
+          padding: 6px 16px;
+          border-radius: 4px;
+          border: 1px solid #e8e7e4;
+          background: #ffffff;
+          color: #5a5955;
           font-size: 13px;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.15s;
           font-family: inherit;
         }
         .pill:hover {
-          background: rgba(255,255,255,0.06);
-          border-color: rgba(255,255,255,0.14);
-          color: rgba(255,255,255,0.65);
+          background: #f7f6f3;
+          color: #1a1a1a;
         }
         .pill.active {
-          background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3));
-          border-color: rgba(99,102,241,0.4);
-          color: #fff;
-          box-shadow: 0 2px 12px rgba(99,102,241,0.2);
+          background: #1a1a1a;
+          border-color: #1a1a1a;
+          color: #ffffff;
         }
 
         /* ── Checkbox ── */
@@ -1173,215 +1117,144 @@ export default function Home() {
           align-items: center;
           gap: 10px;
           cursor: pointer;
-          font-size: 13px;
-          color: rgba(255,255,255,0.6);
+          font-size: 14px;
+          color: #5a5955;
           user-select: none;
         }
-        .checkbox-label input { display: none; }
+        .checkbox-label input {
+          display: none;
+        }
         .checkbox-custom {
-          width: 18px;
-          height: 18px;
-          border-radius: 5px;
-          border: 1px solid rgba(255,255,255,0.15);
-          background: rgba(255,255,255,0.03);
+          width: 16px;
+          height: 16px;
+          border-radius: 3px;
+          border: 1px solid #e8e7e4;
+          background: #ffffff;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.2s;
+          transition: all 0.15s;
           flex-shrink: 0;
         }
         .checkbox-label input:checked + .checkbox-custom {
-          background: linear-gradient(135deg, #6366f1, #7c3aed);
-          border-color: transparent;
+          background: #1a1a1a;
+          border-color: #1a1a1a;
         }
         .checkbox-label input:checked + .checkbox-custom::after {
           content: '';
-          width: 5px;
-          height: 9px;
-          border: solid #fff;
+          width: 4px;
+          height: 7px;
+          border: solid #ffffff;
           border-width: 0 2px 2px 0;
           transform: rotate(45deg);
-          margin-top: -2px;
+          margin-top: -1px;
         }
 
-        /* ── Welcome step ── */
-        .step-illustration {
-          text-align: center;
-          margin-bottom: 28px;
-          animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .welcome-title {
-          font-size: 36px;
-          font-weight: 800;
-          letter-spacing: -0.04em;
-          margin: 16px 0 8px;
-          background: linear-gradient(135deg, #e0e7ff 0%, #c4b5fd 50%, #a5b4fc 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .welcome-tagline {
-          font-size: 16px;
-          color: rgba(255,255,255,0.45);
-        }
-        .welcome-body {
-          margin-bottom: 28px;
-        }
-        .welcome-text {
-          font-size: 14px;
-          color: rgba(255,255,255,0.5);
-          line-height: 1.8;
-          margin-bottom: 24px;
-          text-align: center;
-        }
-        .welcome-features {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .welcome-feature {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.04);
-          border-radius: 12px;
-          font-size: 13px;
-          color: rgba(255,255,255,0.5);
-          opacity: 0;
-          animation: fadeSlideUp 0.4s ease forwards;
-        }
-        .wf-icon {
-          font-size: 20px;
-          flex-shrink: 0;
-        }
-
-        /* ── Done step ── */
-        .done-illustration {
-          text-align: center;
-          margin-bottom: 24px;
-          animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .done-check {
-          display: inline-block;
-        }
-        .done-title {
-          font-size: 32px;
-          font-weight: 800;
-          letter-spacing: -0.03em;
-          margin: 12px 0 4px;
-          background: linear-gradient(135deg, #bbf7d0, #4ade80);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .done-subtitle {
-          font-size: 15px;
-          color: rgba(255,255,255,0.45);
-        }
-        .done-summary {
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 14px;
-          padding: 20px;
-          margin-bottom: 20px;
-        }
-        .done-summary h3 {
-          font-size: 14px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.6);
-          margin-bottom: 14px;
-          letter-spacing: 0.02em;
-        }
-        .summary-grid {
+        /* ── Feature list (welcome) ── */
+        .feature-list {
           display: flex;
           flex-direction: column;
           gap: 8px;
+          margin-bottom: 24px;
         }
-        .summary-item {
+        .feature-item {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          font-size: 14px;
+          color: #5a5955;
+        }
+        .feature-icon {
+          font-size: 13px;
+          font-weight: 600;
+          color: #787774;
+          min-width: 20px;
+        }
+
+        /* ── Done step ── */
+        .done-summary {
+          margin-bottom: 8px;
+        }
+        .done-summary-heading,
+        .done-next-heading {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin-bottom: 10px;
+        }
+        .summary-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .summary-row {
           display: flex;
           align-items: center;
-          gap: 10px;
-          font-size: 13px;
-        }
-        .summary-icon {
-          flex-shrink: 0;
-          width: 24px;
-          text-align: center;
+          gap: 12px;
+          font-size: 14px;
         }
         .summary-label {
-          color: rgba(255,255,255,0.5);
+          color: #5a5955;
           min-width: 70px;
         }
         .summary-status {
-          color: rgba(255,255,255,0.3);
+          color: #b9b7b0;
         }
         .done-next {
-          margin-bottom: 24px;
-        }
-        .done-next h3 {
-          font-size: 14px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.6);
-          margin-bottom: 12px;
+          margin-bottom: 4px;
         }
         .next-steps {
           list-style: none;
           padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 8px;
         }
         .next-steps li {
-          font-size: 13px;
-          color: rgba(255,255,255,0.4);
+          font-size: 14px;
+          color: #5a5955;
           line-height: 1.7;
-          padding-left: 8px;
-          border-left: 2px solid rgba(255,255,255,0.06);
+          padding-left: 16px;
+          border-left: 2px solid #e8e7e4;
         }
         .next-steps li strong {
-          color: rgba(255,255,255,0.65);
+          color: #1a1a1a;
         }
         .next-steps li code {
-          background: rgba(255,255,255,0.05);
-          padding: 1px 6px;
+          font-size: 12px;
+          background: #f7f6f3;
+          padding: 1px 5px;
+          border-radius: 3px;
+          font-family: 'SF Mono', 'Menlo', monospace;
+        }
+        .bookmark-hint {
+          font-size: 12px;
+          color: #b9b7b0;
+        }
+        .inline-link {
+          color: #1a1a1a;
+        }
+
+        /* ── Toast ── */
+        .toast {
+          background: #f7f6f3;
+          border: 1px solid #e8e7e4;
           border-radius: 4px;
-          font-size: 12px;
-        }
-        .done-url-hint {
-          font-size: 12px;
-          color: rgba(255,255,255,0.25);
-        }
-        .link {
-          color: rgba(139,92,246,0.6);
-          text-decoration: none;
-        }
-        .link:hover {
-          color: rgba(139,92,246,0.8);
+          padding: 8px 14px;
+          margin-bottom: 16px;
+          font-size: 13px;
+          color: #5a5955;
         }
 
         /* ── Footer ── */
         .app-footer {
+          margin-top: 60px;
+          padding-top: 16px;
+          border-top: 1px solid #e8e7e4;
+          font-size: 12px;
+          color: #b9b7b0;
           text-align: center;
-          margin-top: 40px;
-          font-size: 11px;
-          color: rgba(255,255,255,0.15);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-        }
-        .footer-dot {
-          opacity: 0.3;
-        }
-
-        @media (max-width: 640px) {
-          .welcome-title { font-size: 28px; }
-          .done-title { font-size: 26px; }
-          .done-url-hint {
-            font-size: 10px;
-          }
         }
       `}</style>
     </>
