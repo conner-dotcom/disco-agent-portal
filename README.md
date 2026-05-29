@@ -1,6 +1,6 @@
 # Disco Agent Portal
 
-Onboarding portal for Disco's AI agent "Rhythm". Employees connect their accounts, set preferences, and get provisioned with GDrive folders and GBrain context.
+Onboarding portal for Disco's AI agent "Gruv". Employees connect their accounts, set preferences, and get provisioned with GDrive folders and GBrain context.
 
 ## Architecture
 
