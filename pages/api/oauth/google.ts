@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createHmac } from 'crypto';
 
-const GOOGLE_CLIENT_ID = '437927730977-b69f4i1bje208hcib6bsu4jvfbo1hacj.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '437927730977-7kjav20pgfbonlf14r7uvm9j2h88prmf.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const REDIRECT_URI = 'https://disco-agent-portal.vercel.app/api/oauth/google';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.readonly';
